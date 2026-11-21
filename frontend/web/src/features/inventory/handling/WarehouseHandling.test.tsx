@@ -12,7 +12,7 @@ const renderHandling = (role: Role = 'owner') =>
   );
 
 const openToril = async () => {
-  await userEvent.click(await screen.findByRole('button', { name: /Open floor plan for Toril/ }));
+  await userEvent.click(await screen.findByRole('button', { name: /^Toril/ }));
 };
 const binButton = (code: string) =>
   screen.findByRole('button', { name: new RegExp(`^Bin ${code},`) });
@@ -28,10 +28,10 @@ describe('Warehouse handling', () => {
     expect(inventory[0]?.label).toBe('Warehouse handling');
   });
 
-  it('shows one card per warehouse and one block per bin of the selected one', async () => {
+  it('shows one map pin per warehouse and one block per bin of the selected one', async () => {
     renderHandling();
     const { warehouses, bins } = await api.getWarehouseOverview();
-    expect(await screen.findAllByRole('button', { name: /Open floor plan for/ })).toHaveLength(
+    expect(await screen.findAllByRole('button', { name: /Warehouse,/ })).toHaveLength(
       warehouses.length,
     );
     await openToril();

@@ -1,5 +1,5 @@
 # Plan 006: Warehouse handling screen, part B (animated map + trucks)
-Status: Draft (ready for GO) · Date: 2026-11-22
+Status: Done · Date: 2026-11-22
 Executor: Sonnet 5.5 sub-agent "B" (runs in parallel with plan 005, sub-agent "A") · Reviewer: Opus
 
 ## Goal and context
@@ -63,8 +63,8 @@ Existing pieces to use: `api.listMovements()` (movements with `at`, `type`, `fro
 
 ## Progress
 - [x] Interview complete (shared with 005, 2026-11-22)
-- [ ] GO received
-- [ ] Steps 1–5
-- [ ] Step 6 (after 005 Done)
-- [ ] Acceptance checks pass
-- [ ] Opus review
+- [x] GO received
+- [x] Steps 1–5
+- [x] Step 6 (after 005 Done)
+- [x] Acceptance checks pass
+- [x] Opus review (2026-11-22: rounded % labels)

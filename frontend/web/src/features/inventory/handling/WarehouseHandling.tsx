@@ -4,8 +4,8 @@ import { useRole } from '@/components/layout/role';
 import { Button, PageHeader } from '@/components/ui';
 import { canAccess } from '@/lib/roles';
 import { BinPanel } from './BinPanel';
-import { WarehouseCards } from './WarehouseCards';
 import { WarehouseFloor } from './WarehouseFloor';
+import { WarehouseMap } from './map/WarehouseMap';
 import './handling.css';
 
 export function WarehouseHandling() {
@@ -49,7 +49,7 @@ export function WarehouseHandling() {
           </div>
         </>
       ) : (
-        <WarehouseCards warehouses={data.warehouses} onSelect={setWarehouseId} />
+        <WarehouseMap warehouses={data.warehouses} onSelect={setWarehouseId} />
       )}
     </>
   );

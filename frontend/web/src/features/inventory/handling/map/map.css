@@ -1,0 +1,103 @@
+.wmap-land {
+  fill: #e7efe0;
+}
+.wmap-sea {
+  fill: #cfe3f0;
+}
+.wmap-road {
+  fill: none;
+  stroke: #b8b2a4;
+  stroke-width: 3;
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}
+.wmap-pin {
+  cursor: pointer;
+  outline: none;
+}
+.wmap-pin:focus-visible .wmap-hit {
+  stroke: #1d4ed8;
+  stroke-width: 2;
+}
+.wmap-hit {
+  fill: transparent;
+}
+.wmap-dot {
+  fill: #16a34a;
+}
+.wmap-pin[data-low='true'] .wmap-dot {
+  fill: #d97706;
+}
+.wmap-pulse {
+  fill: #16a34a;
+  opacity: 0.4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: wmap-pulse 2s ease-out infinite;
+}
+.wmap-pin[data-low='true'] .wmap-pulse {
+  fill: #dc2626;
+  animation-duration: 1.2s;
+}
+.wmap-label {
+  font-size: 11px;
+  fill: #1f2937;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+}
+.wmap-sub {
+  font-size: 9px;
+  fill: #4b5563;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+}
+.wmap-truck {
+  offset-rotate: 0deg;
+  animation: wmap-drive 4s ease-in-out forwards;
+}
+.wmap-truck--rev {
+  animation-direction: reverse;
+}
+.wmap-truck-label {
+  display: none;
+  font-size: 8px;
+  fill: #374151;
+}
+
+@keyframes wmap-pulse {
+  from {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+@keyframes wmap-drive {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wmap-pulse {
+    animation: none;
+    opacity: 0;
+  }
+  .wmap-truck {
+    animation: none;
+    offset-distance: 100%;
+  }
+  .wmap-truck--rev {
+    offset-distance: 0%;
+  }
+  .wmap-truck-label {
+    display: block;
+  }
+}
