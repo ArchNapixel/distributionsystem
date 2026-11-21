@@ -5,9 +5,27 @@ export const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
 export const warehouses: Warehouse[] = [
-  { id: 'wh-toril', name: 'Toril Warehouse', address: 'Toril, Davao City' },
-  { id: 'wh-calinan', name: 'Calinan Warehouse', address: 'Calinan, Davao City' },
-  { id: 'wh-panacan', name: 'Panacan Warehouse', address: 'Panacan, Davao City' },
+  {
+    id: 'wh-toril',
+    name: 'Toril Warehouse',
+    address: 'Toril, Davao City',
+    lat: 7.0186,
+    lng: 125.497,
+  },
+  {
+    id: 'wh-calinan',
+    name: 'Calinan Warehouse',
+    address: 'Calinan, Davao City',
+    lat: 7.1897,
+    lng: 125.4553,
+  },
+  {
+    id: 'wh-panacan',
+    name: 'Panacan Warehouse',
+    address: 'Panacan, Davao City',
+    lat: 7.146,
+    lng: 125.658,
+  },
 ];
 
 export const bins: Bin[] = warehouses.flatMap((w) =>

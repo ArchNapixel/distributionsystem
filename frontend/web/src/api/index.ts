@@ -97,6 +97,8 @@ export interface WarehouseSummary {
   sacks: number;
   pctFull: number;
   low: boolean;
+  lat?: number | undefined;
+  lng?: number | undefined;
 }
 export interface BinSummary {
   id: string;
@@ -185,6 +187,8 @@ function overview(): WarehouseOverview {
       sacks,
       pctFull: capacity ? (sacks / capacity) * 100 : 0,
       low: wb.some((b) => b.low),
+      lat: w.lat,
+      lng: w.lng,
     };
   });
   return { warehouses, bins };

@@ -1,69 +1,188 @@
-.wmap-land {
-  fill: #e7efe0;
-}
-.wmap-sea {
-  fill: #cfe3f0;
-}
-.wmap-road {
-  fill: none;
-  stroke: #b8b2a4;
-  stroke-width: 3;
-  stroke-dasharray: 2 5;
-  stroke-linecap: round;
-}
-.wmap-pin {
+/* Interactive warehouse map: markers, trucks and overlay controls on top of MapLibre. */
+.wmap-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+}
+.wmap-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px 8px 8px;
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  text-align: left;
+  white-space: nowrap;
+}
+.wmap-card::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-right: 1px solid #e4e4e7;
+  border-bottom: 1px solid #e4e4e7;
+  transform: translateX(-50%) rotate(45deg);
+}
+.wmap-marker:hover .wmap-card,
+.wmap-marker:focus-visible .wmap-card {
+  border-color: #16a34a;
+  box-shadow:
+    0 0 0 2px #16a34a,
+    0 4px 12px rgb(0 0 0 / 0.12);
+}
+.wmap-marker:focus-visible {
   outline: none;
 }
-.wmap-pin:focus-visible .wmap-hit {
-  stroke: #1d4ed8;
-  stroke-width: 2;
+.wmap-card-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
 }
-.wmap-hit {
-  fill: transparent;
+.wmap-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #18181b;
 }
-.wmap-dot {
+.wmap-sub {
+  font-size: 12px;
+  color: #52525b;
+}
+.wmap-low {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.wmap-pin {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.wmap-pin svg {
+  position: relative;
+}
+.wmap-pin-head {
   fill: #16a34a;
 }
-.wmap-pin[data-low='true'] .wmap-dot {
+.wmap-marker[data-low='true'] .wmap-pin-head {
   fill: #d97706;
 }
 .wmap-pulse {
-  fill: #16a34a;
+  position: absolute;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #16a34a;
   opacity: 0.4;
-  transform-box: fill-box;
-  transform-origin: center;
   animation: wmap-pulse 2s ease-out infinite;
 }
-.wmap-pin[data-low='true'] .wmap-pulse {
-  fill: #dc2626;
+.wmap-marker[data-low='true'] .wmap-pulse {
+  background: #dc2626;
   animation-duration: 1.2s;
 }
-.wmap-label {
-  font-size: 11px;
-  fill: #1f2937;
-  paint-order: stroke;
-  stroke: #fff;
-  stroke-width: 3px;
+
+.wmap-building {
+  display: block;
 }
-.wmap-sub {
-  font-size: 9px;
-  fill: #4b5563;
-  paint-order: stroke;
-  stroke: #fff;
-  stroke-width: 3px;
+.wmap-shadow {
+  fill: #000;
+  opacity: 0.1;
 }
+.wmap-apron {
+  fill: #e4e4e7;
+}
+.wmap-wall {
+  fill: #f4f4f5;
+  stroke: #d4d4d8;
+}
+.wmap-wall-side {
+  fill: #d4d4d8;
+}
+.wmap-door {
+  fill: #a1a1aa;
+}
+.wmap-door-lines {
+  stroke: #71717a;
+  stroke-width: 1;
+}
+.wmap-window {
+  fill: #bfdbfe;
+}
+
 .wmap-truck {
-  offset-rotate: 0deg;
-  animation: wmap-drive 4s ease-in-out forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
 }
-.wmap-truck--rev {
-  animation-direction: reverse;
+[data-west='true'] > .wmap-truck svg {
+  transform: scaleX(-1);
+}
+.wmap-truck-box {
+  fill: #fff;
+  stroke: #a1a1aa;
+}
+.wmap-truck-cab {
+  fill: #16a34a;
+}
+.wmap-wheel {
+  fill: #27272a;
 }
 .wmap-truck-label {
-  display: none;
-  font-size: 8px;
-  fill: #374151;
+  margin-top: 2px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: #3f3f46;
+  background: #fff;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.wmap-fit {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+  background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+.wmap-fit:hover {
+  background: #f4f4f5;
+}
+.wmap-fit:disabled {
+  opacity: 0.5;
+}
+.wmap-notice {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 28px;
+  margin: 0 auto;
+  max-width: 28rem;
+  padding: 8px 12px;
+  font-size: 13px;
+  text-align: center;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
 }
 
 @keyframes wmap-pulse {
@@ -72,16 +191,8 @@
     opacity: 0.5;
   }
   to {
-    transform: scale(2.2);
+    transform: scale(2);
     opacity: 0;
-  }
-}
-@keyframes wmap-drive {
-  from {
-    offset-distance: 0%;
-  }
-  to {
-    offset-distance: 100%;
   }
 }
 
@@ -89,15 +200,5 @@
   .wmap-pulse {
     animation: none;
     opacity: 0;
-  }
-  .wmap-truck {
-    animation: none;
-    offset-distance: 100%;
-  }
-  .wmap-truck--rev {
-    offset-distance: 0%;
-  }
-  .wmap-truck-label {
-    display: block;
   }
 }

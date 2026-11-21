@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AdjustmentInput, BinInput, ReceiveInput, TransferInput } from './inventory.js';
+import {
+  AdjustmentInput,
+  BinInput,
+  ReceiveInput,
+  TransferInput,
+  WarehouseInput,
+} from './inventory.js';
 
 const adj = {
   kind: 'writeoff',
@@ -12,6 +18,13 @@ const adj = {
 };
 
 describe('inventory schemas', () => {
+  it('warehouse location is optional and must be a valid lat/lng', () => {
+    const wh = { name: 'W', address: 'Davao' };
+    expect(WarehouseInput.safeParse(wh).success).toBe(true);
+    expect(WarehouseInput.safeParse({ ...wh, lat: 7.1, lng: 125.6 }).success).toBe(true);
+    expect(WarehouseInput.safeParse({ ...wh, lat: 91, lng: 125 }).success).toBe(false);
+    expect(WarehouseInput.safeParse({ ...wh, lat: 7, lng: 181 }).success).toBe(false);
+  });
   it('bin capacity defaults to 500 and must be a positive whole number', () => {
     const bin = { warehouseId: 'w', code: 'A1' };
     expect(BinInput.parse(bin).capacitySacks).toBe(500);

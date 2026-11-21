@@ -1,10 +1,12 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, resetMock } from '@/api';
 import { navFor, type Role } from '@/lib/roles';
 import App from '@/App';
+
+vi.mock('maplibre-gl', () => import('./map/maplibre.mock'));
 
 const renderHandling = (role: Role = 'owner') =>
   render(

@@ -1,14 +1,21 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { BinInput, WarehouseInput, type Bin, type Warehouse } from '@drh/shared';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import type { z } from 'zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { api } from '@/api';
 import { useRefs, useWrite } from '@/api/hooks';
 import { useRole } from '@/components/layout/role';
 import { Button, Card, DataTable, Field, Input, Notice, PageHeader, Select } from '@/components/ui';
 import { sacks } from '@/lib/format';
 import { canEditSetup } from '@/lib/roles';
+
+// MapLibre is large: load the picker only when a warehouse form opens.
+const LocationPicker = lazy(() =>
+  import('@/features/inventory/handling/map/LocationPicker').then((m) => ({
+    default: m.LocationPicker,
+  })),
+);
 
 type Editing = { kind: 'warehouse'; item?: Warehouse } | { kind: 'bin'; item?: Bin } | null;
 
@@ -87,6 +94,7 @@ function WarehouseForm({ item, onDone }: { item?: Warehouse | undefined; onDone:
     defaultValues: item,
   });
   const e = form.formState.errors;
+  const [lat, lng] = useWatch({ control: form.control, name: ['lat', 'lng'] });
   const submit = form.handleSubmit((v) => write.mutate([v, item?.id], { onSuccess: onDone }));
   return (
     <Card className="mb-4 max-w-xl">
@@ -97,6 +105,18 @@ function WarehouseForm({ item, onDone }: { item?: Warehouse | undefined; onDone:
         <Field label="Address" htmlFor="w-address" error={e.address?.message}>
           <Input id="w-address" {...form.register('address')} />
         </Field>
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Location</p>
+          <Suspense fallback={<div className="h-56 rounded-md border border-neutral-300" />}>
+            <LocationPicker
+              value={lat !== undefined && lng !== undefined ? { lat, lng } : undefined}
+              onChange={(v) => {
+                form.setValue('lat', v.lat, { shouldDirty: true });
+                form.setValue('lng', v.lng, { shouldDirty: true });
+              }}
+            />
+          </Suspense>
+        </div>
         {write.isError && <Notice>{write.error.message}</Notice>}
         <div className="flex gap-2">
           <Button type="submit" disabled={write.isPending}>

@@ -31,6 +31,9 @@ export const Warehouse = z.object({
   id,
   name: z.string().trim().min(1, 'Name is required'),
   address: z.string().trim().min(1, 'Address is required'),
+  /** Map location (draft). Optional: an unplaced warehouse is not drawn on the map. */
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
 });
 export type Warehouse = z.infer<typeof Warehouse>;
 export const WarehouseInput = Warehouse.omit({ id: true });

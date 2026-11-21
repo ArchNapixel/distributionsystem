@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useWarehouseOverview } from '@/api/hooks';
 import { useRole } from '@/components/layout/role';
 import { Button, PageHeader } from '@/components/ui';
 import { canAccess } from '@/lib/roles';
 import { BinPanel } from './BinPanel';
 import { WarehouseFloor } from './WarehouseFloor';
-import { WarehouseMap } from './map/WarehouseMap';
 import './handling.css';
+
+// MapLibre is large: load the map only on this screen.
+const WarehouseMap = lazy(() =>
+  import('./map/WarehouseMap').then((m) => ({ default: m.WarehouseMap })),
+);
 
 export function WarehouseHandling() {
   const { role } = useRole();
@@ -49,7 +53,12 @@ export function WarehouseHandling() {
           </div>
         </>
       ) : (
-        <WarehouseMap warehouses={data.warehouses} onSelect={setWarehouseId} />
+        // Fill the content area below the header (top bar + page padding + page title ≈ 11rem).
+        <div className="h-[calc(100dvh-11rem)] min-h-[420px]">
+          <Suspense fallback={<div className="h-full rounded-lg bg-white" />}>
+            <WarehouseMap warehouses={data.warehouses} onSelect={setWarehouseId} />
+          </Suspense>
+        </div>
       )}
     </>
   );
