@@ -1,5 +1,5 @@
 # Plan 003: Monorepo scaffold, tooling, CI skeleton
-Status: Draft (ready for GO) · Date: 2026-11-21
+Status: Done (pending user commit) · Date: 2026-11-21
 Executor: Sonnet · Reviewer: Opus
 
 ## Goal and context
@@ -26,6 +26,12 @@ Machine state (2026-11-21): Windows 11 Home, Node v24.19.0, npm 11. **pnpm, Dock
 - **Admin skeleton:** Vite React TS + Tailwind only, with one page titled "Davao Trading Rice Hub". TanStack, shadcn and MapLibre are added in the first UI plan that needs them (YAGNI).
 - **No secrets committed:** `.env.example` only, `.env*` gitignored. The local Supabase keys come from `supabase status` output.
 - Use the latest stable versions at execution time. Don't pin to versions from memory without checking.
+- **Version pins chosen at execution (2026-11-22), for peer compatibility:**
+  - NestJS **11.x**, not 12: `nestjs-zod` 5.6 peers only support `@nestjs/common` ^10 or ^11.
+  - TypeScript **6.0.x**, not 7: `typescript-eslint` 8.73 peers need TS <6.1.
+  - `@types/node` **^24**, to match Node 24 LTS.
+  - Supabase CLI 3.2.0 in both the backend devDeps and CI.
+- Backend files are written by hand rather than with `nest new` followed by stripping. The result is the same, with fewer deleted files.
 
 ## Prerequisites (user, before GO)
 1. Install Docker Desktop for Windows (WSL2 backend), start it, and confirm `docker --version` works.
@@ -69,6 +75,31 @@ Machine state (2026-11-21): Windows 11 Home, Node v24.19.0, npm 11. **pnpm, Dock
 
 ## Progress
 - [x] Interview complete
-- [~] Prerequisites: pnpm 12.21.0 OK. Docker Desktop 4.99 + WSL2 installed 2026-11-21, but a reboot is pending. Step 1 must confirm `docker --version` and that `docker info` runs.
-- [ ] Steps 2-9 done
-- [ ] Acceptance checks pass
+- [x] Prerequisites: pnpm 12.21.0, Node v24.19.0, Docker 29.9.3 with `docker info` working (verified 2026-11-22)
+- [x] Steps 2-9 done (2026-11-22)
+- [x] Acceptance checks pass locally:
+  - lint, format, typecheck, unit tests (shared 2, backend 5, admin 1) and `test:db` (2) all pass
+  - booting without `DATABASE_URL` exits 1; live `/health` returns `{"status":"ok","db":"ok"}`
+  - admin build works and the dev server serves the page title
+  - no `.env` in `git status`
+  - CI is not run until the user pushes
+- [x] Opus review (`/code-review`) done, and the user replied GO on the fixes and the deviations below (2026-11-22). Fixes:
+  - `.env` is loaded via `process.loadEnvFile` in `main.ts` and `drizzle.config.ts`; drizzle fails loudly when the URL is missing
+  - the DB test uses `TEST_DATABASE_URL` and refuses non-local hosts
+  - CI runs `pnpm build`
+  - Node globals are scoped away from frontend code
+  - `/health` has a 2s DB timeout, covered by a new `health.controller.test.ts`
+  - the dead `supabase` script is removed
+- [ ] User commits and pushes; CI green
+
+### Deviations from the plan (small, recorded for the reviewer)
+- Extra files:
+  - `.gitattributes` (LF line endings on Windows) and `.prettierignore`
+  - `tsconfig.build.json` in `backend/` and `shared/`, which keeps tests out of `dist`
+  - a root `build` script
+  - `allowBuilds` in `pnpm-workspace.yaml`, because pnpm 12 blocks install scripts by default
+- Vitest configs are `.mts`, because the backend package is CJS. The DB config spreads the base config instead of using `mergeConfig`, which concatenates `include`.
+- `@drh/shared` exports `src` for types and `dist` at runtime. The Vitest configs alias it to `src`.
+- CI runs the Supabase CLI from the backend devDeps instead of `supabase/setup-cli`, so CI and local use one pinned version. It starts only Postgres (`-x` for all other services).
+- `supabase/config.toml` `project_id` is set to `drh`.
+- The admin test uses plain `@testing-library/react` without `jest-dom` (one fewer dependency).

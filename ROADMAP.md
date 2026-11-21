@@ -42,7 +42,7 @@ Exit: orders, picking, and documents run entirely in the system
 - [ ] Trip planning: multi-stop sequence, load manifest
 - [ ] Load-out with warehouse sign-off (bin -> vehicle, transactional)
 - [ ] Vehicle as stock location with live balance
-- [ ] Driver app (offline-first): stops, per-drop deduction, extra sales, returns, failed-delivery codes
+- [ ] Driver web screens (PWA, offline-first): stops, per-drop deduction, extra sales, returns, failed-delivery codes
 - [ ] Proof of delivery: signature, photo, received-by (pre-signed uploads)
 - [ ] Sync API: push (idempotent batches), pull (cursor), conflict review queue
 - [ ] GPS ingestion: batched pings, day-partitioned table, latest position in Redis

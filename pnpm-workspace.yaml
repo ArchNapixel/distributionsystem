@@ -1,0 +1,9 @@
+packages:
+  - backend
+  - frontend/*
+  - shared
+
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  supabase: true

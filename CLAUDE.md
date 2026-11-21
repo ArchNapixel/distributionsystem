@@ -4,7 +4,7 @@ Business: Davao Trading Rice Hub. Multi-warehouse rice distribution business sys
 
 ## Stack
 Decided in `plans/001-hook-fix-and-tech-stack.md`.
-- Repo: pnpm workspaces monorepo (`apps/api`, `apps/admin`, `apps/driver`, `packages/shared`), TypeScript everywhere; shared zod schemas in `packages/shared`
+- Repo: pnpm workspaces monorepo: `backend/` (`@drh/backend`, NestJS API + `supabase/` config and migrations), `frontend/web/` (`@drh/web`, one website for office and driver screens; no separate driver app), `shared/` (`@drh/shared`, zod schemas). TypeScript everywhere. Pinned: NestJS 11 (nestjs-zod peer), TypeScript 6.0 (typescript-eslint peer), Node 24.
 - Database/Auth/Storage: Supabase (PostgreSQL + PostGIS, Auth, Storage, Row-Level Security), Singapore region
 - DB access: Drizzle ORM + drizzle-kit SQL migrations. API uses the Supavisor transaction pooler; migrations use the direct/session connection. No session-level advisory locks.
 - IDs: UUIDv7 generated in app code (`uuidv7` package), stored as `uuid`
@@ -12,10 +12,10 @@ Decided in `plans/001-hook-fix-and-tech-stack.md`.
 - Hosting: one Docker image in a Singapore region (Render or Railway, TBD), run as API and worker processes
 - Jobs/live data: Redis (fixed-price managed, same region) + BullMQ; NestJS socket.io gateway (Redis adapter) for live GPS, latest position in Redis
 - Admin web: Vite + React SPA, TanStack Router/Query/Table, Tailwind + shadcn/ui, react-hook-form + zod, MapLibre GL
-- Driver app: Expo (React Native), Android first, expo-sqlite + Drizzle, expo-location + expo-task-manager, EAS Build/Update. Offline sync = outbox of idempotent commands (push) + cursor pull; no row-sync engines.
+- Driver screens: section `/driver` of `frontend/web` (mobile-first, no separate app). Phase 3: PWA with service worker, IndexedDB outbox of idempotent commands (push) + cursor pull; no row-sync engines. GPS only while the trip screen is open (Wake Lock); gaps shown on the map; revisit hardware trackers if the pilot needs it. Until the real API exists, `frontend/web/src/api/` is an in-memory mock (plan 004).
 - Documents: `@react-pdf/renderer` in a BullMQ worker, files in Supabase Storage. SMS: Semaphore via queue with retries + DLQ.
 - Testing: Vitest; integration/concurrency tests on the Supabase CLI local stack. CI: GitHub Actions.
-- Commands: TBD (build / test / lint / migrate), fill in once the project exists
+- Commands (repo root): `pnpm install`, `pnpm lint`, `pnpm format`, `pnpm typecheck`, `pnpm test` (unit), `pnpm test:db` (needs the local stack running). Local stack: `pnpm --filter @drh/backend exec supabase start` / `stop` / `status`. Apply migrations locally: `pnpm --filter @drh/backend exec supabase db reset`. Run the API: `pnpm --filter @drh/backend dev` (copy `backend/.env.example` to `.env` first). Run web: `pnpm --filter @drh/web dev`.
 
 ## Core Domain Invariants (never violate)
 - Every sack is in exactly one place: warehouse bin, vehicle, customer, or a virtual location (supplier, loss).
