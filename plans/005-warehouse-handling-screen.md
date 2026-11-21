@@ -1,76 +1,73 @@
-# Plan 005: Warehouse handling screen (animated map + warehouse view)
+# Plan 005: Warehouse handling screen, part A (floor plan + bin panel)
 Status: Draft (ready for GO) · Date: 2026-11-22
-Executor: Sonnet · Reviewer: Opus
+Executor: Sonnet 5.5 sub-agent "A" (runs in parallel with plan 006, sub-agent "B") · Reviewer: Opus
 
 ## Goal and context
-First step of a larger UI overhaul of the plan 004 frontend (`frontend/web`, mock data in `src/api/mock/`). This plan covers only one new screen: **Inventory → Warehouse handling**.
+First step of a larger UI overhaul of the plan 004 frontend (`frontend/web`, mock data in `src/api/mock/`). The new screen **Inventory → Warehouse handling** is split in two plans:
+- **005 (this plan):** route, nav, data, warehouse floor plan, bin panel. Until 006 lands, the map area is a simple list of warehouse cards (name, sacks, % full, low-stock badge) that opens the floor plan.
+- **006 (parallel):** the animated SVG map with pulsing pins and truck replay. Its last step swaps the card list for the map.
 
-The screen shows:
-1. **An animated map** with all warehouses (seed: Toril, Calinan, Panacan in Davao City) as markers. Markers show live stock status (fill level, low-stock warning).
-2. **Click a warehouse** → animated zoom into a **graphical warehouse view**: a floor plan of its bins (A1, A2, B1 …) drawn as racks/stacks, filled in proportion to sacks held, coloured by status.
-3. **Click a bin** → side panel with its lots/products/sacks and shortcuts to Receiving / Transfer pre-filled with that bin.
+Screen behaviour owned here:
+1. Pick a warehouse → animated zoom into a **top-down 2D floor plan**: bins (A1, A2, B1 …) drawn as rack blocks in an auto grid, filled by % of capacity, coloured by status.
+2. Click a bin → side panel (bottom sheet at <768px) with its lots/products/sacks, plus "Receive into bin" and "Transfer from bin".
 
-Current state (plan 004): warehouses have `id, name, address` only; bins have `id, warehouseId, code` only. No coordinates, no layout, no map library installed. Stock balances come from the mock store via `src/api`.
-
-Further UI changes ("major changes" to plan 004 screens) get their own plans after this one.
+Current state (plan 004): warehouses have `id, name, address`; bins have `id, warehouseId, code`. Stock comes from the mock store via `src/api` (`api.listStock`, `api.getRefs`, `useRefs`, `useWrite` in `src/api/hooks.ts`). Nav items live in `src/lib/roles.ts`, routes in `src/router.tsx` (code-based TanStack routes).
 
 ## Decisions and constraints
-- Read-only visualisation: all stock changes still go through the existing mock `api` (movements only). No new write paths. Invariants in CLAUDE.md unchanged.
-- Role access: same as "Inventory: stock" in the plan 004 role matrix (Owner, WH manager, WH staff; Dispatcher view-only, no action shortcuts).
-- Respect `prefers-reduced-motion`: animations become instant/opacity-only.
-- Usable at 375px (side panel becomes a bottom sheet), no page-level horizontal scroll.
-- Draft contract additions in `shared/src/inventory.ts` (pending answers below): warehouse `lat`/`lng`, bin layout position (`x`, `y`, `capacitySacks`).
-- Interview round 1 (2026-11-22):
-  - Map: stylised SVG map of Davao City (inline SVG: coastline, main roads, warehouse pins). No map library, no tile provider, no key. Real MapLibre map stays for Phase 3 Live map.
-  - Warehouse view: top-down 2D floor plan; bins are rack blocks filled by % of capacity, coloured by status (ok / low / near full).
-  - Animations (all): pulsing pins (amber/red when the warehouse has low-stock items); animated zoom from map into the warehouse floor; bins fill/drain when stock changes; trucks drive along roads for recent inter-warehouse transfers.
-  - Bin layout: auto grid from bin codes (letter = row, number = column). Bin capacity in sacks added to the Warehouses & bins form.
-- Interview round 2 (2026-11-22):
-  - Trucks: visual replay only. Each inter-warehouse transfer from the last 24h drives once along the road when the map opens; a new transfer drives right away. Stock still moves instantly (no mock in-transit state; real vehicle stock is Phase 3).
-  - Bin capacity: default 500 sacks for seed bins and new bins; editable per bin.
-  - Bin panel actions: "Receive into bin" (Receiving pre-filled with warehouse + bin) and "Transfer from bin" (Transfers pre-filled with source bin). No adjust or cycle-count shortcuts. Hidden for Dispatcher.
-  - Nav: first item under Inventory ("Warehouse handling"), above Stock on hand.
+- Read-only visualisation: stock changes still go only through the existing mock `api` (movements). No new write paths. CLAUDE.md invariants unchanged.
+- Role access: area `inventory` (Owner, WH manager, WH staff, Dispatcher). Action buttons only for roles with area `stockops` (Dispatcher sees no buttons).
+- Nav: first item under Inventory, label "Warehouse handling", path `/inventory/handling`.
+- Floor: top-down 2D. Auto grid from bin code: leading letters = row, trailing number = column (A1 → row A, col 1). Codes that don't match go in a trailing "Other" row.
+- Bin status colours: ok; low (bin holds a product below its reorder point, same rule as Alerts); near full (≥ 90% of capacity).
+- Capacity: `capacitySacks` on Bin, positive integer, default 500 for seed and new bins, editable in Warehouses & bins. % full can exceed 100% (shown, not blocked; capacity is not enforced by the ledger).
+- Animations: zoom-in from the card/pin into the floor (CSS transform/opacity); bin fill/drain animates when stock changes (transition on height/scale). `prefers-reduced-motion`: instant or opacity-only.
+- Pre-fill: bin panel buttons link to `/inventory/receiving?binId=…` and `/inventory/transfers?fromBinId=…`; those forms read the search param for their default value.
+- No new dependencies.
+- Responsive: usable at 375px, no page-level horizontal scroll.
+
+### Contract with plan 006 (parallel work, do not change without updating both plans)
+- 005 creates `src/features/inventory/handling/WarehouseHandling.tsx`, which renders `<WarehouseCards warehouses={summaries} onSelect={setSelectedId} />` in the overview area, where `summaries: { id: string; name: string; sacks: number; pctFull: number; low: boolean }[]` (exported type `WarehouseSummary` from `src/api/index.ts`).
+- 006 builds `WarehouseMap` with the **same props** and, in its final step, replaces `WarehouseCards` with `WarehouseMap` in `WarehouseHandling.tsx` (one import + one JSX line).
+- 005 never creates or edits files under `handling/map/`. 006 edits no other 005 file.
 
 ## Files to create or change
-- `shared/src/inventory.ts`: optional `lat`, `lng` on Warehouse; `x`, `y`, `capacitySacks` on Bin (draft)
-- `frontend/web/src/api/mock/seed.ts`: coordinates, bin layout, capacities
-- `frontend/web/src/api/index.ts`, `hooks.ts`: `warehouseOverview()` (per-warehouse and per-bin sacks, kg, % full, low-stock flags)
-- `frontend/web/src/features/inventory/handling/*`: `WarehouseMap.tsx`, `WarehouseFloor.tsx`, `BinPanel.tsx`
-- `frontend/web/src/router.tsx`, `src/lib/roles.ts`: new route + nav item
-- `frontend/web/src/index.css`: animation keyframes / motion tokens
+- `shared/src/inventory.ts`: `capacitySacks` on Bin (positive int, default 500) and BinInput; test in `shared/`
+- `frontend/web/src/api/mock/seed.ts`: capacity 500 on seed bins
+- `frontend/web/src/api/index.ts`, `hooks.ts`: `getWarehouseOverview()` → `{ warehouses: WarehouseSummary[]; bins: BinSummary[] }` (BinSummary: id, warehouseId, code, row, col, sacks, kg, capacitySacks, pctFull, low, lots: { lotId, productId, sacks }[]), and a hook
+- `frontend/web/src/api/mock/store.test.ts` (or a new `overview.test.ts`): overview tests
+- `frontend/web/src/features/inventory/handling/WarehouseHandling.tsx`, `WarehouseCards.tsx`, `WarehouseFloor.tsx`, `BinPanel.tsx`, `handling.css`, `WarehouseHandling.test.tsx`
+- `frontend/web/src/router.tsx`, `src/lib/roles.ts`: route + nav item
 - `frontend/web/src/features/setup/Warehouses.tsx`: capacity field on bins
 - `frontend/web/src/features/inventory/Receiving.tsx`, `Transfers.tsx`: read pre-fill search params
-- No new dependencies (SVG + CSS animations).
-- tests next to the code
 
 ## Steps
-1. Extend draft schemas + seed (coordinates, bin layout, capacity). Unit test for schema rules.
-2. Add `warehouseOverview()` to the mock api + unit test (totals match stock-on-hand).
-3. Build `WarehouseMap` (inline SVG Davao map, pulsing pins, truck replay of last-24h inter-warehouse transfers via existing movements).
-4. Build `WarehouseFloor` (animated zoom-in, auto grid from bin codes, animated fill/drain by % of capacity).
-5. Build `BinPanel` (lot list; Receive into bin / Transfer from bin via route search params read by the Receiving and Transfers forms). Add bin capacity field to Warehouses & bins.
-6. Route, nav item, role guard; reduced-motion; responsive checks (375 / 768 / 1280).
-7. Run lint, format:check, typecheck, test, build.
+1. Add `capacitySacks` to the Bin schema + seed; schema unit test (positive int, default 500).
+2. Add `getWarehouseOverview()` + hook; unit tests.
+3. Route `/inventory/handling`, nav item (first in Inventory), role guard.
+4. `WarehouseCards` (temporary overview) and `WarehouseHandling` page with selected-warehouse state.
+5. `WarehouseFloor`: auto grid, fill levels, status colours, zoom-in and fill/drain animations, reduced motion.
+6. `BinPanel`: lot list, two action links (hidden without `stockops`); bottom sheet on mobile.
+7. Pre-fill search params in Receiving and Transfers; capacity field in Warehouses & bins.
+8. Responsive check (375 / 768 / 1280). Run `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm build`.
 
 ## Tests and acceptance criteria
-- Unit: overview totals equal stock-on-hand totals per warehouse and per bin; % full = sacks / capacity; only inter-warehouse transfers from the last 24h produce truck trips (same-warehouse transfers don't).
-- Component: "Receive into bin" / "Transfer from bin" open their forms with the bin pre-selected.
-- Component: map renders one marker per warehouse; clicking a marker shows its floor with one shape per bin; clicking a bin shows its lots; Dispatcher sees no action shortcuts.
-- After a Receiving or Transfer, returning to the screen shows updated fill levels.
-- Manual: animations smooth, reduced-motion respected, no horizontal page scroll at 375px.
+- Unit: overview sacks per warehouse and per bin equal `listStock` totals; pctFull = sacks / capacity × 100; grid row/col parsed from codes (A1, B12, odd codes → Other).
+- Component: nav shows "Warehouse handling" first in Inventory; one card per warehouse; selecting one shows one block per bin; clicking a bin lists its lots; Dispatcher sees no action buttons; "Receive into bin" / "Transfer from bin" open forms with the bin pre-selected; after a receive, the bin's sacks update.
+- Manual: animations smooth, reduced motion respected, no horizontal scroll at 375px.
+
+## Isolation
+- Each sub-agent runs in its own git worktree and branch (`plan-005` for A, `plan-006` for B), created from the commit the user makes before GO. Plan 006's integration step runs after `plan-005` is merged to `main`, then `plan-006` is rebased/merged. Opus reviews each branch before merge. No pushes.
 
 ## Risks and rollback
-- Map tiles need an external provider (and maybe a key) if a real map is chosen; a stylised SVG map has none.
-- Animation performance on low-end phones: keep to CSS transforms/opacity.
-- Rollback: git revert; additive schema fields are optional.
+- Parallel edits with 006: avoided by the file ownership in the contract above.
+- Rollback: git revert; the schema field is additive with a default.
 
 ## Open questions
 - (none)
 
 ## Progress
-- [x] Interview round 1
-- [x] Interview complete (2 rounds)
+- [x] Interview complete (2 rounds, 2026-11-22; split into 005 + 006)
 - [ ] GO received
-- [ ] Steps 1–7
+- [ ] Steps 1–8
 - [ ] Acceptance checks pass
 - [ ] Opus review
