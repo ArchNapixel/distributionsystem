@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ReceiveInput } from '@drh/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useSearch } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { api } from '@/api';
 import { useRefs, useWrite } from '@/api/hooks';
@@ -20,15 +21,21 @@ const normalize = (v: ReceiveInput, mode: Mode): ReceiveInput => ({
 });
 
 export function Receiving() {
-  const { refs } = useRefs();
+  const { refs, ready } = useRefs();
+  const { binId } = useSearch({ strict: false }) as { binId?: unknown };
+  const prefillBin = typeof binId === 'string' ? binId : '';
   const { data: orders = [] } = useQuery({ queryKey: ['pos'], queryFn: api.listPurchaseOrders });
   const write = useWrite(api.receive);
   const [mode, setMode] = useState<Mode>('existing');
   const form = useForm<ReceiveInput>({
     resolver: (values, ctx, opts) => zodResolver(ReceiveInput)(normalize(values, mode), ctx, opts),
-    defaultValues: { newLot: { code: '', grade: '', milledOn: '' } },
+    defaultValues: { binId: prefillBin, newLot: { code: '', grade: '', milledOn: '' } },
   });
-  const { register, formState, control } = form;
+  const { register, formState, control, setValue } = form;
+  // The bin options load asynchronously, so apply the pre-fill once they exist.
+  useEffect(() => {
+    if (ready && prefillBin) setValue('binId', prefillBin);
+  }, [ready, prefillBin, setValue]);
   const e = formState.errors;
   const supplierId = useWatch({ control, name: 'supplierId' });
   const productId = useWatch({ control, name: 'productId' });

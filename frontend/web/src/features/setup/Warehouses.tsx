@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { BinInput, WarehouseInput, type Bin, type Warehouse } from '@drh/shared';
 import { useState } from 'react';
+import type { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { api } from '@/api';
 import { useRefs, useWrite } from '@/api/hooks';
 import { useRole } from '@/components/layout/role';
 import { Button, Card, DataTable, Field, Input, Notice, PageHeader, Select } from '@/components/ui';
+import { sacks } from '@/lib/format';
 import { canEditSetup } from '@/lib/roles';
 
 type Editing = { kind: 'warehouse'; item?: Warehouse } | { kind: 'bin'; item?: Bin } | null;
@@ -56,6 +58,7 @@ export function Warehouses() {
               empty="No bins yet."
               columns={[
                 { header: 'Bin', cell: (b) => b.code },
+                { header: 'Capacity', cell: (b) => sacks(b.capacitySacks) },
                 {
                   header: '',
                   cell: (b) =>
@@ -111,7 +114,10 @@ function WarehouseForm({ item, onDone }: { item?: Warehouse | undefined; onDone:
 function BinForm({ item, onDone }: { item?: Bin | undefined; onDone: () => void }) {
   const { refs } = useRefs();
   const write = useWrite(api.saveBin);
-  const form = useForm<BinInput>({ resolver: zodResolver(BinInput), defaultValues: item });
+  const form = useForm<z.input<typeof BinInput>, unknown, BinInput>({
+    resolver: zodResolver(BinInput),
+    defaultValues: item ?? { capacitySacks: 500 },
+  });
   const e = form.formState.errors;
   const submit = form.handleSubmit((v) => write.mutate([v, item?.id], { onSuccess: onDone }));
   return (
@@ -129,6 +135,14 @@ function BinForm({ item, onDone }: { item?: Bin | undefined; onDone: () => void 
         </Field>
         <Field label="Bin code" htmlFor="b-code" error={e.code?.message}>
           <Input id="b-code" {...form.register('code')} />
+        </Field>
+        <Field label="Capacity (sacks)" htmlFor="b-capacity" error={e.capacitySacks?.message}>
+          <Input
+            id="b-capacity"
+            type="number"
+            inputMode="numeric"
+            {...form.register('capacitySacks', { valueAsNumber: true })}
+          />
         </Field>
         {write.isError && <Notice>{write.error.message}</Notice>}
         <div className="flex gap-2">

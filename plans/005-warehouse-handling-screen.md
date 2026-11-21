@@ -1,5 +1,5 @@
 # Plan 005: Warehouse handling screen, part A (floor plan + bin panel)
-Status: Draft (ready for GO) · Date: 2026-11-22
+Status: Done · Date: 2026-11-22
 Executor: Sonnet 5.5 sub-agent "A" (runs in parallel with plan 006, sub-agent "B") · Reviewer: Opus
 
 ## Goal and context
@@ -67,7 +67,7 @@ Current state (plan 004): warehouses have `id, name, address`; bins have `id, wa
 
 ## Progress
 - [x] Interview complete (2 rounds, 2026-11-22; split into 005 + 006)
-- [ ] GO received
-- [ ] Steps 1–8
-- [ ] Acceptance checks pass
-- [ ] Opus review
+- [x] GO received
+- [x] Steps 1–8 (step 8 responsive check: layout reasoned from Tailwind classes, not viewed in a browser)
+- [x] Acceptance checks pass
+- [x] Opus review (2026-11-22: fill-up animation on open added)

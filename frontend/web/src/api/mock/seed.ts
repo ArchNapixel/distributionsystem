@@ -11,7 +11,12 @@ export const warehouses: Warehouse[] = [
 ];
 
 export const bins: Bin[] = warehouses.flatMap((w) =>
-  ['A1', 'A2', 'B1'].map((code) => ({ id: `${w.id}-${code}`, warehouseId: w.id, code })),
+  ['A1', 'A2', 'B1'].map((code) => ({
+    id: `${w.id}-${code}`,
+    warehouseId: w.id,
+    code,
+    capacitySacks: 500,
+  })),
 );
 
 export const suppliers: Supplier[] = [

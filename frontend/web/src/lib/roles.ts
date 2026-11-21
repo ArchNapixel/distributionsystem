@@ -49,6 +49,12 @@ const soon = (phase: number, description: string) => ({ phase, description });
 
 export const NAV: NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', area: 'dashboard', group: '' },
+  {
+    label: 'Warehouse handling',
+    path: '/inventory/handling',
+    area: 'inventory',
+    group: 'Inventory',
+  },
   { label: 'Stock on hand', path: '/inventory/stock', area: 'inventory', group: 'Inventory' },
   { label: 'Movements', path: '/inventory/movements', area: 'inventory', group: 'Inventory' },
   { label: 'Receiving', path: '/inventory/receiving', area: 'stockops', group: 'Inventory' },

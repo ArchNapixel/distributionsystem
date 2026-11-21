@@ -40,6 +40,11 @@ export const Bin = z.object({
   id,
   warehouseId: id,
   code: z.string().trim().min(1, 'Bin code is required'),
+  capacitySacks: z
+    .number({ error: 'Enter the capacity in sacks' })
+    .int('Enter a whole number of sacks')
+    .positive('Capacity must be above 0')
+    .default(500),
 });
 export type Bin = z.infer<typeof Bin>;
 export const BinInput = Bin.omit({ id: true });

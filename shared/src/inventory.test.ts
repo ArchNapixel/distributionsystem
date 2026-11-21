@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AdjustmentInput, ReceiveInput, TransferInput } from './inventory.js';
+import { AdjustmentInput, BinInput, ReceiveInput, TransferInput } from './inventory.js';
 
 const adj = {
   kind: 'writeoff',
@@ -12,6 +12,13 @@ const adj = {
 };
 
 describe('inventory schemas', () => {
+  it('bin capacity defaults to 500 and must be a positive whole number', () => {
+    const bin = { warehouseId: 'w', code: 'A1' };
+    expect(BinInput.parse(bin).capacitySacks).toBe(500);
+    expect(BinInput.safeParse({ ...bin, capacitySacks: 0 }).success).toBe(false);
+    expect(BinInput.safeParse({ ...bin, capacitySacks: 1.5 }).success).toBe(false);
+    expect(BinInput.parse({ ...bin, capacitySacks: 120 }).capacitySacks).toBe(120);
+  });
   it('rejects non-positive or fractional sacks', () => {
     const base = { supplierId: 's', binId: 'b', productId: 'p', lotId: 'l' };
     expect(ReceiveInput.safeParse({ ...base, sacks: 0 }).success).toBe(false);

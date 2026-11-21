@@ -91,6 +91,39 @@ export interface AgingAlert {
   ageDays: number;
 }
 
+export interface WarehouseSummary {
+  id: string;
+  name: string;
+  sacks: number;
+  pctFull: number;
+  low: boolean;
+}
+export interface BinSummary {
+  id: string;
+  warehouseId: string;
+  code: string;
+  /** Floor-plan grid position parsed from the code; "Other" row for codes that do not match. */
+  row: string;
+  col: number;
+  sacks: number;
+  kg: number;
+  capacitySacks: number;
+  pctFull: number;
+  low: boolean;
+  lots: { lotId: string; productId: string; sacks: number }[];
+}
+export interface WarehouseOverview {
+  warehouses: WarehouseSummary[];
+  bins: BinSummary[];
+}
+
+export const OTHER_ROW = 'Other';
+/** "A1" gives row A, col 1; anything else goes to the trailing Other row (col set by caller). */
+export function parseBinCode(code: string): { row: string; col: number } {
+  const m = /^([A-Za-z]+)(\d+)$/.exec(code.trim());
+  return m ? { row: m[1]!.toUpperCase(), col: Number(m[2]) } : { row: OTHER_ROW, col: 0 };
+}
+
 export interface CycleCountView extends Omit<CycleCountRecord, 'lines'> {
   lines: (CountLine & { system: number })[];
 }
@@ -110,6 +143,51 @@ function lowStock(): LowStockAlert[] {
     .filter((p) => p.active)
     .map((product) => ({ product, sacks: productSacks(product.id) }))
     .filter((a) => a.sacks < a.product.reorderPoint);
+}
+
+function overview(): WarehouseOverview {
+  const lowIds = new Set(lowStock().map((a) => a.product.id));
+  const stock = realBalances();
+  const bins: BinSummary[] = [];
+  const warehouses = state.warehouses.map((w): WarehouseSummary => {
+    let other = 0;
+    const mine = state.bins.filter((b) => b.warehouseId === w.id);
+    for (const b of mine) {
+      const lots = stock
+        .filter((x) => x.locationId === b.id)
+        .map((x) => ({ lotId: x.lotId, productId: x.productId, sacks: x.sacks }));
+      const sacks = lots.reduce((n, l) => n + l.sacks, 0);
+      const kg = lots.reduce(
+        (n, l) => n + l.sacks * find(state.products, l.productId, 'Product').sackKg,
+        0,
+      );
+      const pos = parseBinCode(b.code);
+      bins.push({
+        id: b.id,
+        warehouseId: w.id,
+        code: b.code,
+        row: pos.row,
+        col: pos.row === OTHER_ROW ? ++other : pos.col,
+        sacks,
+        kg,
+        capacitySacks: b.capacitySacks,
+        pctFull: (sacks / b.capacitySacks) * 100,
+        low: lots.some((l) => lowIds.has(l.productId)),
+        lots,
+      });
+    }
+    const wb = bins.filter((b) => b.warehouseId === w.id);
+    const sacks = wb.reduce((n, b) => n + b.sacks, 0);
+    const capacity = wb.reduce((n, b) => n + b.capacitySacks, 0);
+    return {
+      id: w.id,
+      name: w.name,
+      sacks,
+      pctFull: capacity ? (sacks / capacity) * 100 : 0,
+      low: wb.some((b) => b.low),
+    };
+  });
+  return { warehouses, bins };
 }
 
 function aging(): AgingAlert[] {
@@ -175,6 +253,8 @@ export const api = {
       agingLotCount: aging().length,
       recent: [...state.movements].reverse().slice(0, 8),
     }),
+
+  getWarehouseOverview: (): Promise<WarehouseOverview> => read(overview()),
 
   getAlerts: (): Promise<{ lowStock: LowStockAlert[]; aging: AgingAlert[] }> =>
     read({ lowStock: lowStock(), aging: aging() }),

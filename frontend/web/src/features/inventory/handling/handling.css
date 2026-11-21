@@ -1,0 +1,68 @@
+/* Floor plan: zoom-in on open, fill/drain on stock change. Colours follow bin status. */
+.handling-zoom {
+  animation: handling-zoom 0.35s ease-out;
+}
+@keyframes handling-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.bin-fill {
+  transition: height 0.5s ease;
+  animation: bin-fill-up 0.6s ease-out;
+}
+@keyframes bin-fill-up {
+  from {
+    height: 0;
+  }
+}
+
+.bin-block[data-status='ok'] {
+  border-color: var(--color-green-600);
+  background: var(--color-green-50);
+}
+.bin-block[data-status='ok'] .bin-fill {
+  background: var(--color-green-300);
+}
+.bin-block[data-status='full'] {
+  border-color: var(--color-amber-600);
+  background: var(--color-amber-50);
+}
+.bin-block[data-status='full'] .bin-fill {
+  background: var(--color-amber-300);
+}
+.bin-block[data-status='low'] {
+  border-color: var(--color-red-600);
+  background: var(--color-red-50);
+}
+.bin-block[data-status='low'] .bin-fill {
+  background: var(--color-red-300);
+}
+.bin-block[aria-pressed='true'] {
+  outline: 2px solid var(--color-neutral-900);
+  outline-offset: 2px;
+}
+
+@keyframes handling-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .handling-zoom {
+    animation: handling-fade 0.01s;
+  }
+  .bin-fill {
+    transition: none;
+    animation: none;
+  }
+}

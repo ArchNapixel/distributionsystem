@@ -44,3 +44,8 @@ export function useWrite<A extends unknown[], R>(fn: (...args: A) => Promise<R>)
     onSuccess: () => qc.invalidateQueries(),
   });
 }
+
+/** Per-warehouse and per-bin stock levels for the handling screen. */
+export function useWarehouseOverview() {
+  return useQuery({ queryKey: ['warehouse-overview'], queryFn: api.getWarehouseOverview });
+}

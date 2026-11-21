@@ -14,6 +14,7 @@ import { Adjustments } from '@/features/inventory/Adjustments';
 import { Alerts } from '@/features/inventory/Alerts';
 import { CycleCounts } from '@/features/inventory/CycleCounts';
 import { LotDetail, Lots } from '@/features/inventory/Lots';
+import { WarehouseHandling } from '@/features/inventory/handling/WarehouseHandling';
 import { Movements } from '@/features/inventory/Movements';
 import { Receiving } from '@/features/inventory/Receiving';
 import { StockOnHand } from '@/features/inventory/StockOnHand';
@@ -46,6 +47,7 @@ const index = createRoute({
 
 const implemented = [
   page('/dashboard', Dashboard),
+  page('/inventory/handling', WarehouseHandling),
   page('/inventory/stock', StockOnHand),
   page('/inventory/movements', Movements),
   page('/inventory/receiving', Receiving),

@@ -1,16 +1,28 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { TransferInput } from '@drh/shared';
+import { useSearch } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { api } from '@/api';
-import { useWrite } from '@/api/hooks';
+import { useRefs, useWrite } from '@/api/hooks';
 import { Button, Field, Input, Notice, PageHeader } from '@/components/ui';
 import { sacks } from '@/lib/format';
 import { BinSelect, ProductLotFields } from './StockFields';
 
 export function Transfers() {
   const write = useWrite(api.transfer);
-  const form = useForm<TransferInput>({ resolver: zodResolver(TransferInput) });
-  const { register, formState, control } = form;
+  const { ready } = useRefs();
+  const { fromBinId: from } = useSearch({ strict: false }) as { fromBinId?: unknown };
+  const prefillFrom = typeof from === 'string' ? from : '';
+  const form = useForm<TransferInput>({
+    resolver: zodResolver(TransferInput),
+    defaultValues: { fromBinId: prefillFrom },
+  });
+  const { register, formState, control, setValue } = form;
+  // The bin options load asynchronously, so apply the pre-fill once they exist.
+  useEffect(() => {
+    if (ready && prefillFrom) setValue('fromBinId', prefillFrom);
+  }, [ready, prefillFrom, setValue]);
   const productId = useWatch({ control, name: 'productId' });
   const fromBinId = useWatch({ control, name: 'fromBinId' });
   const e = formState.errors;
