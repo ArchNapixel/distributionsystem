@@ -13,8 +13,12 @@ const renderHandling = (role: Role = 'owner') =>
     <App role={role} history={createMemoryHistory({ initialEntries: ['/inventory/handling'] })} />,
   );
 
-const openToril = async () => {
+const selectToril = async () => {
   await userEvent.click(await screen.findByRole('button', { name: /^Toril/ }));
+};
+const openToril = async () => {
+  await selectToril();
+  await userEvent.click(await screen.findByRole('button', { name: 'Open floor plan' }));
 };
 const binButton = (code: string) =>
   screen.findByRole('button', { name: new RegExp(`^Bin ${code},`) });
@@ -39,6 +43,28 @@ describe('Warehouse handling', () => {
     await openToril();
     const count = bins.filter((b) => b.warehouseId === 'wh-toril').length;
     expect(await screen.findAllByRole('button', { name: /^Bin / })).toHaveLength(count);
+  });
+
+  it('opens the floor plan with a bin selected from a bin card of the map panel', async () => {
+    renderHandling();
+    await selectToril();
+    await userEvent.click(await screen.findByRole('button', { name: /^Open bin A1,/ }));
+    expect(await screen.findByRole('region', { name: 'Bin A1 details' })).toBeInTheDocument();
+    expect(await binButton('A1')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('has a Fit all warehouses button in the title row that returns from a selection', async () => {
+    renderHandling();
+    await selectToril();
+    expect(screen.getByRole('complementary', { name: 'Toril Warehouse details' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Fit all warehouses' }));
+    // The panel slides out (it stays mounted so its content does not jump).
+    await waitFor(() =>
+      expect(screen.getByLabelText('Toril Warehouse details')).toHaveAttribute(
+        'data-open',
+        'false',
+      ),
+    );
   });
 
   it('lists the lots of a clicked bin', async () => {

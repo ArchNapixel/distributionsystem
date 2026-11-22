@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { DAVAO_CENTER, DAVAO_ZOOM, MAP_STYLE } from './layout';
+import './setup';
 
 export type Location = { lat: number; lng: number };
 

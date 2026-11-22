@@ -1,5 +1,5 @@
 # Plan 010: Isometric warehouse map redesign (design handoff)
-Status: Draft · Date: 2026-11-22
+Status: Done · Date: 2026-11-22
 Executor: Sonnet (admin UI, no stock/money writes) · Reviewer: Opus
 
 ## Goal and context
@@ -104,7 +104,8 @@ Data: `WarehouseSummary` (`sacks`, `pctFull`, `low`, `lat`, `lng`) and `BinSumma
 
 ## Progress checklist
 - [x] Interview complete (2026-11-22)
-- [ ] GO received
-- [ ] Steps 1–10
-- [ ] Acceptance checks pass
+- [x] GO received
+- [x] Steps 1-10 (softening, `dotProgress` and the fetch-error check live in `map/layout.ts` rather than a new module; new `layout.test.ts`; `maplibre.mock.ts` extended; `interior()` escapes bin codes and wraps to a new row every 3 bins; the camera is refit once on the first style load, after the canvas has its real size)
+- [x] Acceptance checks pass (lint, format:check, typecheck, test, build). Headless Edge check: markers, label cards, gauges, legend, restyled controls and the title-row button render; basemap tiles do not draw without a GPU, as in plan 007.
+- [ ] By hand in a real browser: softened basemap and cities-only labels, fly-in and back, looping dots, panel slide, and how the three Davao label cards sit at the fit-all zoom (Calinan and Toril are close and overlap in the headless shot)
 - [ ] Opus review

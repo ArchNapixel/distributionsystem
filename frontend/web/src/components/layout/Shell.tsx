@@ -117,7 +117,9 @@ export function Shell() {
           </aside>
         )}
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-          <div className="mx-auto max-w-6xl">{allowed ? <Outlet /> : <NotAvailable />}</div>
+          <div className={cn('mx-auto', path !== '/inventory/handling' && 'max-w-6xl')}>
+            {allowed ? <Outlet /> : <NotAvailable />}
+          </div>
         </main>
       </div>
     </div>

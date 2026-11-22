@@ -1,13 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { api } from '@/api';
+import { api, type BinSummary } from '@/api';
 import { useRefs } from '@/api/hooks';
-import { DAVAO_CENTER, DAVAO_ZOOM, MAP_STYLE, roofColours } from './layout';
-import { pointAlong, routeBetween, SAVED_ROUTES, type LngLat } from './routes';
+import { gabled, interior, PAL, status } from './isometric';
+import {
+  dotProgress,
+  FALLBACK_STYLE,
+  isStyleFetchError,
+  MAP_STYLE,
+  MAP_VIEW,
+  softenBasemap,
+} from './layout';
+import { pointAlong, routeBetween, type LngLat } from './routes';
 import { truckTrips } from './trucks';
+import { WarehousePanel, type PanelTransfer } from './WarehousePanel';
+import './setup';
 import './map.css';
 
 export type WarehouseMapProps = {
@@ -20,73 +38,131 @@ export type WarehouseMapProps = {
     lat?: number | undefined;
     lng?: number | undefined;
   }[];
+  bins: BinSummary[];
+  /** The open warehouse: drives the camera, the marker, the dimming of the others and the panel. */
+  selectedId: string | null;
   onSelect: (id: string) => void;
+  onBack: () => void;
+  /** Open the floor plan of the selected warehouse, optionally with one bin selected. */
+  onOpenFloor: (warehouseId: string, binId?: string) => void;
+  ref?: Ref<WarehouseMapHandle>;
 };
 
-const DRIVE_MS = 6000;
-
-const hoursAgo = (at: string, now: number) =>
-  Math.max(0, Math.round((now - Date.parse(at)) / 3_600_000));
+export type WarehouseMapHandle = { fit: () => void };
 
 const reducedMotion = () =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+const NO_PADDING = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** Camera that shows every warehouse, with room above each point for its label card. */
 function fitAll(map: maplibregl.Map, points: LngLat[], animate: boolean) {
   if (points.length === 0) return;
-  const bounds = new maplibregl.LngLatBounds();
-  for (const p of points) bounds.extend(p);
-  // Padding scales with the map; extra at the top because label cards sit above each point.
+  const lngs = points.map((p) => p[0]);
+  const lats = points.map((p) => p[1]);
+  // A plain array: cameraForBounds mishandles LngLatBounds.extend in some versions.
+  const bounds: [LngLat, LngLat] = [
+    [Math.min(...lngs), Math.min(...lats)],
+    [Math.max(...lngs), Math.max(...lats)],
+  ];
   const { clientWidth: w, clientHeight: h } = map.getContainer();
-  const side = Math.min(110, w / 3); // label cards stick out ~95px either side of the point
-  const padding = {
-    top: Math.min(160, h / 3),
-    bottom: Math.min(50, h / 8),
-    left: side,
-    right: side,
+  const sx = Math.min(150, w / 4);
+  const cam = map.cameraForBounds(bounds, {
+    padding: { top: Math.min(200, h / 2.6), bottom: Math.min(90, h / 6), left: sx, right: sx },
+    maxZoom: 13,
+    bearing: 0,
+  });
+  if (!cam) return;
+  const to = {
+    center: cam.center,
+    zoom: (cam.zoom ?? MAP_VIEW.zoom) - 0.35,
+    pitch: MAP_VIEW.pitch,
+    bearing: MAP_VIEW.bearing,
   };
-  map.fitBounds(bounds, { padding, maxZoom: 13, duration: animate ? 800 : 0 });
+  if (animate) map.flyTo({ ...to, duration: 1800, essential: true });
+  else map.jumpTo(to);
 }
 
-/** Draws the saved warehouse-to-warehouse roads as asphalt with a dashed centre line. */
-function addRoads(map: maplibregl.Map) {
-  map.addSource('wh-roads', {
-    type: 'geojson',
-    data: {
-      type: 'FeatureCollection',
-      features: SAVED_ROUTES.map((coordinates) => ({
-        type: 'Feature',
-        properties: {},
-        geometry: { type: 'LineString', coordinates },
-      })),
-    },
-  });
+const EMPTY_COLLECTION = { type: 'FeatureCollection' as const, features: [] };
+
+const flowLines = (routes: LngLat[][]) => ({
+  type: 'FeatureCollection' as const,
+  features: routes.map((coordinates) => ({
+    type: 'Feature' as const,
+    properties: {},
+    geometry: { type: 'LineString' as const, coordinates },
+  })),
+});
+
+/** Two dots per route, looping; parked at the midpoint when motion is reduced. */
+const flowDots = (routes: LngLat[][], nowMs: number, still: boolean) => ({
+  type: 'FeatureCollection' as const,
+  features: routes.flatMap((route, i) =>
+    [0, 1].map((k) => ({
+      type: 'Feature' as const,
+      properties: {},
+      geometry: {
+        type: 'Point' as const,
+        coordinates: pointAlong(route, dotProgress(nowMs, i, k, still)).at,
+      },
+    })),
+  ),
+});
+
+const setData = (
+  map: maplibregl.Map,
+  id: string,
+  data: typeof EMPTY_COLLECTION | ReturnType<typeof flowLines> | ReturnType<typeof flowDots>,
+) => (map.getSource(id) as maplibregl.GeoJSONSource | undefined)?.setData(data);
+
+/** Route lines and the dots that travel along them. Re-added after every style load. */
+function addFlow(map: maplibregl.Map) {
+  if (map.getSource('wh-flow')) return;
+  map.addSource('wh-flow', { type: 'geojson', data: EMPTY_COLLECTION });
+  map.addSource('wh-dots', { type: 'geojson', data: EMPTY_COLLECTION });
   const line = { 'line-join': 'round', 'line-cap': 'round' } as const;
   map.addLayer({
-    id: 'wh-roads-casing',
+    id: 'wh-flow-casing',
     type: 'line',
-    source: 'wh-roads',
+    source: 'wh-flow',
     layout: line,
     paint: {
-      'line-color': '#d4d4d8',
-      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 5, 15, 16],
+      'line-color': '#ffffff',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 6, 15, 18],
     },
   });
   map.addLayer({
-    id: 'wh-roads',
+    id: 'wh-flow',
     type: 'line',
-    source: 'wh-roads',
+    source: 'wh-flow',
     layout: line,
     paint: {
-      'line-color': '#3f3f46',
-      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 15, 12],
+      'line-color': '#bbf7d0',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 15, 8],
     },
   });
   map.addLayer({
-    id: 'wh-roads-centre',
-    type: 'line',
-    source: 'wh-roads',
-    paint: { 'line-color': '#fafafa', 'line-width': 1, 'line-dasharray': [3, 3] },
+    id: 'wh-dots-glow',
+    type: 'circle',
+    source: 'wh-dots',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 9, 15, 18],
+      'circle-color': '#22c55e',
+      'circle-opacity': 0.18,
+      'circle-blur': 0.6,
+    },
+  });
+  map.addLayer({
+    id: 'wh-dots',
+    type: 'circle',
+    source: 'wh-dots',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3.5, 15, 7],
+      'circle-color': '#16a34a',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff',
+    },
   });
 }
 
@@ -94,56 +170,48 @@ function addRoads(map: maplibregl.Map) {
 function MapMarker({
   map,
   at,
+  raised = false,
   children,
 }: {
   map: maplibregl.Map;
   at: LngLat;
+  raised?: boolean;
   children: ReactNode;
 }) {
   const [el] = useState(() => document.createElement('div'));
+  const marker = useRef<maplibregl.Marker | null>(null);
   const [lng, lat] = at;
   useEffect(() => {
-    const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+    const m = new maplibregl.Marker({ element: el, anchor: 'bottom' })
       .setLngLat([lng, lat])
       .addTo(map);
+    marker.current = m;
     return () => {
-      marker.remove();
+      m.remove();
     };
   }, [map, el, lng, lat]);
+  useEffect(() => {
+    const style = marker.current?.getElement().style;
+    if (style) style.zIndex = raised ? '5' : '';
+  }, [raised, lng, lat]);
   return createPortal(children, el);
 }
 
-/** 2.5D warehouse: gable front, right side wall, two roof slopes, roll-up door, loading apron. */
-function Building({ id }: { id: string }) {
-  const { roof, shade } = roofColours(id);
-  return (
-    <svg
-      viewBox="-100 -95 200 120"
-      width="96"
-      height="58"
-      aria-hidden="true"
-      className="wmap-building"
-    >
-      <ellipse cx="15" cy="6" rx="95" ry="16" className="wmap-shadow" />
-      <polygon points="-72,2 74,2 96,18 -50,18" className="wmap-apron" />
-      <polygon points="55,0 85,-18 85,-68 55,-50" className="wmap-wall-side" />
-      <polygon points="-55,0 -55,-50 0,-70 55,-50 55,0" className="wmap-wall" />
-      <polygon points="0,-72 30,-90 88,-68 58,-50" fill={shade} />
-      <polygon points="-58,-50 0,-72 30,-90 -28,-68" fill={roof} />
-      <rect x="-22" y="-34" width="44" height="34" className="wmap-door" />
-      <path d="M-22 -26 H22 M-22 -18 H22 M-22 -10 H22" className="wmap-door-lines" />
-      <rect x="-48" y="-30" width="16" height="10" className="wmap-window" />
-      <rect x="32" y="-30" width="16" height="10" className="wmap-window" />
-    </svg>
-  );
-}
+type MarkerState = 'idle' | 'selected' | 'dimmed';
 
-/** Warehouse marker: floating label card with a status pin, above the building. */
+/**
+ * Warehouse marker: a gabled building with a stock gauge under a label card. Selected, it
+ * opens into a 3D view of its bins under a dark name pill; the others fade back.
+ */
 function WarehouseMarker({
   w,
+  state,
+  bins,
   onSelect,
 }: {
   w: WarehouseMapProps['warehouses'][number];
+  state: MarkerState;
+  bins: BinSummary[];
   onSelect: (id: string) => void;
 }) {
   const pct = Math.round(w.pctFull);
@@ -151,106 +219,60 @@ function WarehouseMarker({
     <button
       type="button"
       className="wmap-marker"
+      data-state={state}
       data-low={w.low}
       aria-label={`${w.name}, ${w.sacks} sacks, ${pct}% full${w.low ? ', low stock' : ''}`}
       onClick={() => onSelect(w.id)}
     >
-      <span className="wmap-card">
-        <span className="wmap-pin" aria-hidden="true">
-          <span className="wmap-pulse" />
-          <svg viewBox="0 0 24 32" width="22" height="30">
-            <path
-              d="M12 31C6 23 1 18 1 11.5a11 11 0 0 1 22 0C23 18 18 23 12 31Z"
-              className="wmap-pin-head"
-            />
-            <circle cx="12" cy="11.5" r="4" fill="#fff" />
-          </svg>
-        </span>
-        <span className="wmap-card-text">
-          <span className="wmap-label">{w.name}</span>
-          <span className="wmap-sub">
-            {w.sacks} sacks • {pct}% full
+      {state === 'selected' ? (
+        <>
+          <span className="wmap-pill">{w.name}</span>
+          <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: interior(bins) }} />
+        </>
+      ) : (
+        <>
+          <span className="wmap-card">
+            <span className="wmap-label">{w.name}</span>
+            <span className="wmap-sub">
+              <span className="wmap-bar" role="presentation">
+                <span
+                  style={{
+                    width: `${Math.min(100, pct)}%`,
+                    background: PAL[status(w.pctFull)].bar,
+                  }}
+                />
+              </span>
+              {pct}% full
+            </span>
+            {w.low && <span className="wmap-low">Low stock</span>}
           </span>
-          {w.low && <span className="wmap-low">Low stock</span>}
-        </span>
-      </span>
-      <Building id={w.id} />
+          <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: gabled(w.pctFull) }} />
+        </>
+      )}
     </button>
   );
 }
 
-/** Side-view box truck facing east; mirrored when heading west so it never drives upside down. */
-function TruckMarker({
-  map,
-  id,
-  route,
-  label,
-  onDone,
-}: {
-  map: maplibregl.Map;
-  id: string;
-  route: LngLat[];
-  label: string;
-  onDone: (id: string) => void;
-}) {
-  const [el] = useState(() => document.createElement('div'));
-  const [still] = useState(reducedMotion);
-  useEffect(() => {
-    const marker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' })
-      .setLngLat(route[0]!)
-      .addTo(map);
-    const place = (t: number) => {
-      const { at, heading } = pointAlong(route, t);
-      const west = Math.abs(heading) > 90;
-      marker.getElement().dataset.west = String(west);
-      marker.setLngLat(at).setRotation(west ? heading + 180 : heading);
-    };
-    if (still) {
-      place(1);
-      return () => {
-        marker.remove();
-      };
-    }
-    let raf = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const p = Math.min(1, (now - start) / DRIVE_MS);
-      place(0.5 - 0.5 * Math.cos(Math.PI * p)); // ease in-out
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else onDone(id);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      marker.remove();
-    };
-  }, [map, el, route, still, id, onDone]);
-
-  return createPortal(
-    <span className="wmap-truck" data-testid="truck">
-      <svg viewBox="-22 -22 44 28" width="44" height="28" aria-hidden="true">
-        <ellipse cx="0" cy="2" rx="20" ry="4" className="wmap-shadow" />
-        <rect x="-18" y="-18" width="26" height="16" rx="2" className="wmap-truck-box" />
-        <path d="M8 -14 H15 L20 -8 V-2 H8 Z" className="wmap-truck-cab" />
-        <path d="M10 -12 H14 L17 -8 H10 Z" className="wmap-window" />
-        <circle cx="-11" cy="-1" r="3.5" className="wmap-wheel" />
-        <circle cx="13" cy="-1" r="3.5" className="wmap-wheel" />
-      </svg>
-      {still && <span className="wmap-truck-label">{label}</span>}
-    </span>,
-    el,
-  );
-}
-
-export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
+export function WarehouseMap({
+  warehouses,
+  bins,
+  selectedId,
+  onSelect,
+  onBack,
+  onOpenFloor,
+  ref,
+}: WarehouseMapProps) {
   const { refs } = useRefs();
   const movements = useQuery({ queryKey: ['movements'], queryFn: api.listMovements });
   const box = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
-  // Trips that finished driving; a trip plays once, new transfers appear as new trips.
+  // Bumped on every style load: a new style drops our sources, so they are added again.
+  const [styleLoads, setStyleLoads] = useState(0);
   const [now] = useState(Date.now);
-  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
-  const finish = useCallback((id: string) => setDone((d) => new Set(d).add(id)), []);
+  const [still] = useState(reducedMotion);
+  // The panel keeps the last selected warehouse while it slides out.
+  const [lastId, setLastId] = useState(selectedId);
+  if (selectedId && selectedId !== lastId) setLastId(selectedId);
 
   const placed = useMemo(
     () =>
@@ -262,21 +284,51 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
   const unplaced = warehouses.length - placed.length;
   const points = useMemo(() => placed.map((w) => w.at), [placed]);
   const firstPoints = useRef(points);
+  const binsOf = useMemo(() => {
+    const byWarehouse = new Map<string, BinSummary[]>();
+    for (const b of bins)
+      byWarehouse.set(b.warehouseId, [...(byWarehouse.get(b.warehouseId) ?? []), b]);
+    return byWarehouse;
+  }, [bins]);
 
   // The map is an external system: create it once on mount, hand it to React through state.
   useEffect(() => {
+    const container = box.current!;
     const m = new maplibregl.Map({
-      container: box.current!,
+      container,
       style: MAP_STYLE,
-      center: DAVAO_CENTER,
-      zoom: DAVAO_ZOOM,
+      ...MAP_VIEW,
       maxPitch: 70,
+      attributionControl: { compact: true },
     });
     m.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
-    m.on('load', () => addRoads(m));
+    // The softening runs on every style load, so it also applies after a fallback setStyle.
+    let fitted = false;
+    m.on('style.load', () => {
+      softenBasemap(m);
+      addFlow(m);
+      m.resize();
+      if (!fitted) {
+        // The first fit ran before the canvas had its real size; redo it now that it does.
+        fitted = true;
+        fitAll(m, firstPoints.current, false);
+      }
+      setStyleLoads((n) => n + 1);
+    });
+    let fellBack = false;
+    m.on('error', (e) => {
+      if (fellBack || !isStyleFetchError(e)) return;
+      fellBack = true;
+      m.setStyle(FALLBACK_STYLE);
+    });
+    const resize = new ResizeObserver(() => m.resize());
+    resize.observe(container);
     fitAll(m, firstPoints.current, false);
-    setMap(m); // the map is an external system, handed to React through state
-    return () => m.remove();
+    setMap(m);
+    return () => {
+      resize.disconnect();
+      m.remove();
+    };
   }, []);
 
   const trips = useMemo(() => {
@@ -293,47 +345,140 @@ export function WarehouseMap({ warehouses, onSelect }: WarehouseMapProps) {
     });
   }, [movements.data, refs.bins, now, placed]);
 
+  // One route per direction, however many transfers used it.
+  const routes = useMemo(
+    () => [
+      ...new Map(trips.map((t) => [`${t.fromWarehouseId}>${t.toWarehouseId}`, t.route])).values(),
+    ],
+    [trips],
+  );
+
+  useEffect(() => {
+    if (map) setData(map, 'wh-flow', flowLines(routes));
+  }, [map, styleLoads, routes]);
+
+  useEffect(() => {
+    if (!map) return;
+    if (still) {
+      setData(map, 'wh-dots', flowDots(routes, 0, true));
+      return;
+    }
+    let raf = 0;
+    const tick = (t: number) => {
+      setData(map, 'wh-dots', flowDots(routes, t, false));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [map, styleLoads, routes, still]);
+
+  // Camera: fly in on select, back out to all warehouses on deselect (not on first mount).
+  const selectedAt = placed.find((w) => w.id === selectedId)?.at;
+  const [selLng, selLat] = selectedAt ?? [];
+  const wasSelected = useRef(false);
+  useEffect(() => {
+    if (!map) return;
+    if (selLng !== undefined && selLat !== undefined) {
+      wasSelected.current = true;
+      const right = map.getContainer().clientWidth >= 720 ? 360 : 0; // keep the building clear of the panel
+      map.flyTo({
+        center: [selLng, selLat],
+        zoom: 15.6,
+        pitch: 58,
+        bearing: -24,
+        duration: 2200,
+        curve: 1.5,
+        padding: { right, top: 80, left: 0, bottom: 0 },
+        essential: true,
+      });
+    } else if (wasSelected.current) {
+      wasSelected.current = false;
+      map.stop();
+      map.setPadding(NO_PADDING);
+      fitAll(map, points, true);
+    }
+  }, [map, selLng, selLat, points]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      fit: () => {
+        if (selectedId)
+          onBack(); // deselecting flies back out to all warehouses
+        else if (map) fitAll(map, points, true);
+      },
+    }),
+    [map, points, selectedId, onBack],
+  );
+
+  const panelWarehouse = warehouses.find((w) => w.id === lastId);
+  const nameOf = (id: string) => warehouses.find((w) => w.id === id)?.name ?? 'another warehouse';
+  const transfers = trips.flatMap((t): PanelTransfer[] =>
+    t.fromWarehouseId === lastId
+      ? [{ id: t.id, direction: 'out', otherName: nameOf(t.toWarehouseId), sacks: t.sacks }]
+      : t.toWarehouseId === lastId
+        ? [{ id: t.id, direction: 'in', otherName: nameOf(t.fromWarehouseId), sacks: t.sacks }]
+        : [],
+  );
+
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg bg-white">
+    <div className="wmap">
       <div
         ref={box}
         className="h-full w-full"
         role="region"
         aria-label="Map of Davao City warehouses"
       />
-      <button
-        type="button"
-        className="wmap-fit"
-        onClick={() => map && fitAll(map, points, true)}
-        disabled={points.length === 0}
-      >
-        Fit all warehouses
-      </button>
       {unplaced > 0 && (
         <p className="wmap-notice" role="status">
           {unplaced === 1 ? '1 warehouse has' : `${unplaced} warehouses have`} no location yet; set
           it in Warehouses &amp; bins.
         </p>
       )}
+      <div className="wmap-legend">
+        <span>
+          <i className="wmap-swatch" style={{ background: PAL.empty.bar }} />
+          Empty
+        </span>
+        <span>
+          <i className="wmap-swatch" style={{ background: PAL.ok.bar }} />
+          In use
+        </span>
+        <span>
+          <i className="wmap-swatch" style={{ background: PAL.full.bar }} />
+          Near full
+        </span>
+        <span>
+          <i className="wmap-dotted" />
+          Recent transfer
+        </span>
+      </div>
       {map &&
         placed.map((w) => (
-          <MapMarker key={w.id} map={map} at={w.at}>
-            <WarehouseMarker w={w} onSelect={onSelect} />
+          <MapMarker key={w.id} map={map} at={w.at} raised={w.id === selectedId}>
+            <WarehouseMarker
+              w={w}
+              state={w.id === selectedId ? 'selected' : selectedId ? 'dimmed' : 'idle'}
+              bins={binsOf.get(w.id) ?? []}
+              onSelect={onSelect}
+            />
           </MapMarker>
         ))}
-      {map &&
-        trips
-          .filter((t) => !done.has(t.id))
-          .map((t) => (
-            <TruckMarker
-              key={t.id}
-              map={map}
-              id={t.id}
-              route={t.route}
-              label={`Transferred ${hoursAgo(t.at, now)}h ago`}
-              onDone={finish}
-            />
-          ))}
+      <WarehousePanel
+        warehouse={
+          panelWarehouse
+            ? {
+                ...panelWarehouse,
+                address: refs.warehouses.find((w) => w.id === panelWarehouse.id)?.address,
+              }
+            : null
+        }
+        open={selectedId !== null}
+        bins={binsOf.get(lastId ?? '') ?? []}
+        transfers={transfers}
+        onClose={onBack}
+        onOpenFloor={(binId) => lastId && onOpenFloor(lastId, binId)}
+      />
     </div>
   );
 }

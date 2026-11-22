@@ -11,7 +11,7 @@ Decided in `plans/001-hook-fix-and-tech-stack.md`.
 - Backend API: NestJS on Node 24 LTS, zod validation (`nestjs-zod`), `nestjs-pino`, Sentry. Supabase JWT verified via JWKS; roles and warehouse scope in our own tables.
 - Hosting: one Docker image in a Singapore region (Render or Railway, TBD), run as API and worker processes
 - Jobs/live data: Redis (fixed-price managed, same region) + BullMQ; NestJS socket.io gateway (Redis adapter) for live GPS, latest position in Redis
-- Admin web: Vite + React SPA, TanStack Router/Query/Table, Tailwind + shadcn/ui, react-hook-form + zod, MapLibre GL (basemap tiles from OpenFreeMap, free, no key; lazy-loaded)
+- Admin web: Vite + React SPA, TanStack Router/Query/Table, Tailwind + shadcn/ui, react-hook-form + zod, MapLibre GL (basemap tiles from OpenFreeMap, free, no key, with the Carto positron style as a fallback only if OpenFreeMap fails to load; lazy-loaded)
 - Driver screens: section `/driver` of `frontend/web` (mobile-first, no separate app). Phase 3: PWA with service worker, IndexedDB outbox of idempotent commands (push) + cursor pull; no row-sync engines. GPS only while the trip screen is open (Wake Lock); gaps shown on the map; revisit hardware trackers if the pilot needs it. Until the real API exists, `frontend/web/src/api/` is an in-memory mock (plan 004).
 - Documents: `@react-pdf/renderer` in a BullMQ worker, files in Supabase Storage. SMS: Semaphore via queue with retries + DLQ.
 - Testing: Vitest; integration/concurrency tests on the Supabase CLI local stack. CI: GitHub Actions.

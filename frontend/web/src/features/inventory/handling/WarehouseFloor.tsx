@@ -1,9 +1,10 @@
 import { OTHER_ROW, type BinSummary } from '@/api';
 import { sacks } from '@/lib/format';
+import { status } from './map/isometric';
 
 export type BinStatus = 'ok' | 'low' | 'full';
 export const binStatus = (b: BinSummary): BinStatus =>
-  b.low ? 'low' : b.pctFull >= 90 ? 'full' : 'ok';
+  b.low ? 'low' : status(b.pctFull) === 'full' ? 'full' : 'ok';
 export const STATUS_LABEL: Record<BinStatus, string> = {
   ok: 'OK',
   low: 'Low stock',
