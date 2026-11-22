@@ -15,7 +15,7 @@ Decided in `plans/001-hook-fix-and-tech-stack.md`.
 - Driver screens: section `/driver` of `frontend/web` (mobile-first, no separate app). Phase 3: PWA with service worker, IndexedDB outbox of idempotent commands (push) + cursor pull; no row-sync engines. GPS only while the trip screen is open (Wake Lock); gaps shown on the map; revisit hardware trackers if the pilot needs it. Until the real API exists, `frontend/web/src/api/` is an in-memory mock (plan 004).
 - Documents: `@react-pdf/renderer` in a BullMQ worker, files in Supabase Storage. SMS: Semaphore via queue with retries + DLQ.
 - Testing: Vitest; integration/concurrency tests on the Supabase CLI local stack. CI: GitHub Actions.
-- Commands (repo root): `pnpm install`, `pnpm lint`, `pnpm format`, `pnpm typecheck`, `pnpm test` (unit), `pnpm test:db` (needs the local stack running). Local stack: `pnpm --filter @drh/backend exec supabase start` / `stop` / `status`. Apply migrations locally: `pnpm --filter @drh/backend exec supabase db reset`. Run the API: `pnpm --filter @drh/backend dev` (copy `backend/.env.example` to `.env` first). Run web: `pnpm --filter @drh/web dev`.
+- Commands (repo root): `pnpm install`, `pnpm dev` (web), `pnpm lint`, `pnpm format`, `pnpm typecheck`, `pnpm test` (unit), `pnpm test:db` (needs the local stack running). Local stack: `pnpm --filter @drh/backend exec supabase start` / `stop` / `status`. Apply migrations locally: `pnpm --filter @drh/backend exec supabase db reset`. Run the API: `pnpm --filter @drh/backend dev` (copy `backend/.env.example` to `.env` first). Run web: `pnpm --filter @drh/web dev`.
 
 ## Core Domain Invariants (never violate)
 - Every sack is in exactly one place: warehouse bin, vehicle, customer, or a virtual location (supplier, loss).
@@ -85,4 +85,5 @@ Every feature and change must meet this floor. Do not trade it away for speed or
 ## Conventions
 - Roadmap: `ROADMAP.md`. Plans: `plans/`.
 - Customer-facing output (invoices, delivery receipts, notifications) uses the business name: Davao Trading Rice Hub.
+- When a task is done and ready for commit, give me a suggested commit name (short, imperative, plan number in parentheses, e.g. `Add root dev script (plan 008)`). Suggestion only; don't run `git commit` unless asked.
 - Update this file when stack, commands, or conventions are decided.
